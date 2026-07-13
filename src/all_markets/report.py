@@ -6,6 +6,7 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from .analyzer import AnalysisResult, MarketLeader
+from .weekly_signals import WeeklySignal, WeeklyValidation
 
 
 @dataclass
@@ -59,7 +60,52 @@ def _weak_reason(item: MarketLeader, macro_flags: list[str]) -> str:
     return "短期缺少增量叙事，资金流向更强的相对收益方向。"
 
 
-def build_report(brand: str, timezone: str, analysis: AnalysisResult) -> ReportBundle:
+def _format_weekly_signal(signal: WeeklySignal) -> str:
+    return f"- {signal.name}（截至 {signal.as_of}）：{signal.value}，结论：{signal.summary}"
+
+
+def _weekly_markdown(weekly_validation: WeeklyValidation | None) -> list[str]:
+    if weekly_validation is None:
+        return ["## 第2层：周频增强信号", "- 暂无周频增强数据。"]
+
+    lines = ["## 第2层：周频增强信号"]
+    if weekly_validation.highlights:
+        lines.extend(["### 真实流量补充验证", *[f"- {item}" for item in weekly_validation.highlights]])
+
+    if weekly_validation.cot_signals:
+        lines.append("")
+        lines.append("### CFTC COT")
+        lines.extend(_format_weekly_signal(signal) for signal in weekly_validation.cot_signals)
+
+    if weekly_validation.northbound_signal:
+        lines.append("")
+        lines.append("### A股北向资金")
+        lines.append(_format_weekly_signal(weekly_validation.northbound_signal))
+
+    if weekly_validation.btc_etf_signal:
+        lines.append("")
+        lines.append("### BTC ETF 净流入")
+        lines.append(_format_weekly_signal(weekly_validation.btc_etf_signal))
+
+    if weekly_validation.credit_signal:
+        lines.append("")
+        lines.append("### 信用债 ETF 风险偏好")
+        lines.append(_format_weekly_signal(weekly_validation.credit_signal))
+
+    if weekly_validation.errors:
+        lines.append("")
+        lines.append("### 数据备注")
+        lines.extend(f"- {item}" for item in weekly_validation.errors)
+
+    return lines
+
+
+def build_report(
+    brand: str,
+    timezone: str,
+    analysis: AnalysisResult,
+    weekly_validation: WeeklyValidation | None = None,
+) -> ReportBundle:
     now = datetime.now(ZoneInfo(timezone))
     date_label = now.strftime("%Y-%m-%d")
     effective_brand = brand.strip() or "全球资金流向早报"
@@ -75,50 +121,56 @@ def build_report(brand: str, timezone: str, analysis: AnalysisResult) -> ReportB
     ]
     macro_lines = "\n".join(f"- {flag}" for flag in analysis.macro_flags) or "- 宏观变量波动有限，市场更关注相对收益。"
 
-    markdown = "\n".join(
-        [
-            f"# {title}",
-            "",
-            "## 今日一句话",
-            summary,
-            "",
-            "## 四分法结论",
-            f"- 叙事判断：{analysis.narrative}",
-            "- 业绩判断：强势市场集中在盈利确定性更高的龙头与半导体链。",
-            f"- 交易判断：最强方向是{best_regions}与{best_themes}，弱势市场则面临相对收益流失。",
-            f"- {analysis.positioning}",
-            "",
-            "## 资金流向地图",
-            _format_leaders("强势区域", analysis.top_regions),
-            "",
-            _format_leaders("强势主题", analysis.top_themes),
-            "",
-            "## 为什么其他市场跌",
-            *weakest_lines,
-            "",
-            "## 宏观因子",
-            macro_lines,
-            "",
-            "## 全球基准表现",
-            _table_markdown(analysis.benchmark_table),
-            "",
-            "## 主题表现",
-            _table_markdown(analysis.theme_table),
-            "",
-            "## 跨资产表现",
-            _table_markdown(analysis.cross_asset_table, include_asset_class=True),
-        ]
-    )
+    markdown_lines = [
+        f"# {title}",
+        "",
+        "## 今日一句话",
+        summary,
+        "",
+        "## 第1层：日频免费主报告",
+        "",
+        "### 四分法结论",
+        f"- 叙事判断：{analysis.narrative}",
+        "- 业绩判断：强势市场集中在盈利确定性更高的龙头与半导体链。",
+        f"- 交易判断：最强方向是{best_regions}与{best_themes}，弱势市场则面临相对收益流失。",
+        f"- {analysis.positioning}",
+        "",
+        "### 股票地域轮动",
+        _format_leaders("强势区域", analysis.top_regions),
+        "",
+        "### 股票行业轮动",
+        _format_leaders("强势主题", analysis.top_themes),
+        "",
+        "### 为什么其他市场跌",
+        *weakest_lines,
+        "",
+        "### 宏观因子",
+        macro_lines,
+        "",
+        "### 全球基准表现",
+        _table_markdown(analysis.benchmark_table),
+        "",
+        "### 主题表现",
+        _table_markdown(analysis.theme_table),
+        "",
+        "### 跨资产表现",
+        _table_markdown(analysis.cross_asset_table, include_asset_class=True),
+        "",
+        *_weekly_markdown(weekly_validation),
+    ]
+    markdown = "\n".join(markdown_lines)
 
-    short_text = "\n".join(
-        [
-            title,
-            f"一句话：{summary}",
-            f"叙事判断：{analysis.narrative}",
-            f"交易判断：领涨方向为{best_regions}、{best_themes}。",
-            f"仓位判断：{analysis.positioning.replace('仓位判断：', '')}",
-        ]
-    )
+    weekly_summary = weekly_validation.highlights[0] if weekly_validation and weekly_validation.highlights else None
+    short_text_lines = [
+        title,
+        f"一句话：{summary}",
+        f"叙事判断：{analysis.narrative}",
+        f"交易判断：领涨方向为{best_regions}、{best_themes}。",
+        f"仓位判断：{analysis.positioning.replace('仓位判断：', '')}",
+    ]
+    if weekly_summary:
+        short_text_lines.append(f"周频验证：{weekly_summary}")
+    short_text = "\n".join(short_text_lines)
 
     payload = {
         "date": date_label,
@@ -126,6 +178,7 @@ def build_report(brand: str, timezone: str, analysis: AnalysisResult) -> ReportB
         "report_brand": effective_brand,
         "summary": summary,
         "analysis": asdict(analysis),
+        "weekly_validation": weekly_validation.to_payload() if weekly_validation else None,
         "markdown": markdown,
     }
     json.loads(json.dumps(payload, ensure_ascii=False))

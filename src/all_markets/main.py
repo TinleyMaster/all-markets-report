@@ -10,9 +10,12 @@ from .feishu import FeishuCredentials, create_dated_report_document, send_group_
 from .fetcher import fetch_snapshots
 from .llm_writer import polish_report_with_deepseek
 from .report import build_report
+from .weekly_signals import build_weekly_validation
 
 
-def _save_artifacts(workspace: Path, date_label: str, payload: dict, markdown: str) -> tuple[Path, Path]:
+def _save_artifacts(
+    workspace: Path, date_label: str, payload: dict, markdown: str
+) -> tuple[Path, Path]:
     output_dir = workspace / "outputs" / date_label
     output_dir.mkdir(parents=True, exist_ok=True)
     json_path = output_dir / "report.json"
@@ -40,7 +43,13 @@ def main() -> None:
         top_themes=runtime.top_themes,
         top_losers=runtime.top_losers,
     )
-    bundle = build_report(runtime.report_brand, runtime.timezone, analysis)
+    weekly_validation = build_weekly_validation(cross_asset_snapshots)
+    bundle = build_report(
+        runtime.report_brand,
+        runtime.timezone,
+        analysis,
+        weekly_validation=weekly_validation,
+    )
 
     if runtime.deepseek_api_key:
         try:
