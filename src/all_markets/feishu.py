@@ -7,6 +7,7 @@ from datetime import datetime
 from typing import Iterable
 
 import requests
+from requests import HTTPError
 
 
 class FeishuError(RuntimeError):
@@ -28,7 +29,11 @@ class FeishuDocument:
 
 def _request_json(method: str, url: str, **kwargs) -> dict:
     response = requests.request(method=method, url=url, timeout=30, **kwargs)
-    response.raise_for_status()
+    try:
+        response.raise_for_status()
+    except HTTPError as error:
+        details = response.text.strip()
+        raise FeishuError(f"Feishu HTTP error: {error}. response={details}") from error
     data = response.json()
     if data.get("code", 0) not in {0, None}:
         raise FeishuError(f"Feishu API error: {data.get('msg') or data}")
@@ -58,8 +63,16 @@ def _headers(token: str) -> dict[str, str]:
 
 
 def extract_folder_token(folder_ref: str) -> str:
+    folder_ref = folder_ref.strip()
     match = re.search(r"(fld[a-zA-Z0-9]+)", folder_ref)
-    return match.group(1) if match else folder_ref.strip()
+    if match:
+        return match.group(1)
+    if folder_ref.startswith("fld"):
+        return folder_ref
+    raise FeishuError(
+        "FEISHU_REPORT_FOLDER 必须是飞书云空间文件夹链接或 fld 开头的 folder token，"
+        "例如 https://xxx.feishu.cn/drive/folder/fldxxxxxxxx 或 fldxxxxxxxx。"
+    )
 
 
 def _text_elements(content: str) -> list[dict]:
