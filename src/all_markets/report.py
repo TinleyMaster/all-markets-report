@@ -60,8 +60,34 @@ def _weak_reason(item: MarketLeader, macro_flags: list[str]) -> str:
     return "短期缺少增量叙事，资金流向更强的相对收益方向。"
 
 
-def _format_weekly_signal(signal: WeeklySignal) -> str:
-    return f"- {signal.name}（截至 {signal.as_of}）：{signal.value}，结论：{signal.summary}"
+def _extract_cot_weekly_change(signal: WeeklySignal) -> str | None:
+    details = signal.details or {}
+    value = details.get("weekly_change_contracts")
+    if value is None:
+        return None
+    return f"{float(value):+,.0f} 张"
+
+
+def _extract_cot_direction(signal: WeeklySignal) -> str:
+    summary = signal.summary
+    if "继续加多" in summary:
+        return "加多"
+    if "继续减仓" in summary:
+        return "减仓"
+    return "变化有限"
+
+
+def _format_cot_signal(signal: WeeklySignal) -> str:
+    weekly_change = _extract_cot_weekly_change(signal)
+    weekly_change_text = f"，周变动 {weekly_change}" if weekly_change else ""
+    return (
+        f"- {signal.name}：{signal.value}，仓位状态 {signal.direction}"
+        f"{weekly_change_text}，近周方向 {_extract_cot_direction(signal)}。"
+    )
+
+
+def _format_single_weekly_signal(signal: WeeklySignal) -> str:
+    return f"- {signal.summary}"
 
 
 def _weekly_markdown(weekly_validation: WeeklyValidation | None) -> list[str]:
@@ -79,25 +105,26 @@ def _weekly_markdown(weekly_validation: WeeklyValidation | None) -> list[str]:
 
     if weekly_validation.cot_signals:
         lines.append("")
-        lines.append("### CFTC COT")
+        cot_as_of = weekly_validation.cot_signals[0].as_of
+        lines.append(f"### CFTC COT（截至 {cot_as_of}）")
         lines.extend(
-            _format_weekly_signal(signal) for signal in weekly_validation.cot_signals
+            _format_cot_signal(signal) for signal in weekly_validation.cot_signals
         )
 
     if weekly_validation.northbound_signal:
         lines.append("")
         lines.append("### A股北向资金")
-        lines.append(_format_weekly_signal(weekly_validation.northbound_signal))
+        lines.append(_format_single_weekly_signal(weekly_validation.northbound_signal))
 
     if weekly_validation.btc_etf_signal:
         lines.append("")
         lines.append("### BTC ETF 净流入")
-        lines.append(_format_weekly_signal(weekly_validation.btc_etf_signal))
+        lines.append(_format_single_weekly_signal(weekly_validation.btc_etf_signal))
 
     if weekly_validation.credit_signal:
         lines.append("")
         lines.append("### 信用债 ETF 风险偏好")
-        lines.append(_format_weekly_signal(weekly_validation.credit_signal))
+        lines.append(_format_single_weekly_signal(weekly_validation.credit_signal))
 
     if weekly_validation.errors:
         lines.append("")

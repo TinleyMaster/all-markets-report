@@ -69,6 +69,22 @@ def _normalize_markdown(markdown: str) -> str:
     return "\n".join(normalized).strip()
 
 
+def _replace_weekly_section(markdown: str, original_markdown: str) -> str:
+    section_marker = "## 第2层：周频增强信号"
+    if section_marker not in original_markdown:
+        return markdown
+
+    original_weekly = original_markdown.split(section_marker, 1)[1].strip()
+    rebuilt_weekly = f"{section_marker}\n{original_weekly}".strip()
+
+    if section_marker not in markdown:
+        base = markdown.rstrip()
+        return f"{base}\n\n{rebuilt_weekly}\n"
+
+    prefix = markdown.split(section_marker, 1)[0].rstrip()
+    return f"{prefix}\n\n{rebuilt_weekly}\n"
+
+
 def polish_report_with_deepseek(
     bundle: ReportBundle, api_key: str, model: str
 ) -> ReportBundle:
@@ -105,6 +121,7 @@ def polish_report_with_deepseek(
     if not polished:
         return bundle
     polished = _normalize_markdown(polished)
+    polished = _replace_weekly_section(polished, bundle.markdown)
 
     return ReportBundle(
         date_label=bundle.date_label,
