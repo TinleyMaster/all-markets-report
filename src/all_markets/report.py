@@ -27,7 +27,7 @@ def _format_leaders(title: str, leaders: list[MarketLeader]) -> str:
     lines = [f"### {title}"]
     for item in leaders:
         lines.append(
-            f"- {item.name}（{item.symbol}）日涨跌 {item.daily_return:+.2f}%，5日 {item.weekly_return:+.2f}%，原因：{item.reason}"
+            f"- **{item.name}（{item.symbol}）**：日涨跌 {item.daily_return:+.2f}%，5日 {item.weekly_return:+.2f}%。逻辑：{item.reason}"
         )
     return "\n".join(lines)
 
@@ -58,6 +58,25 @@ def _weak_reason(item: MarketLeader, macro_flags: list[str]) -> str:
     if any("高利率" in flag or "长债走弱" in flag for flag in macro_flags):
         return "利率抬升压制估值扩张，弱势市场承压更明显。"
     return "短期缺少增量叙事，资金流向更强的相对收益方向。"
+
+
+def _market_overview(
+    analysis: AnalysisResult, best_regions: str, best_themes: str
+) -> str:
+    if analysis.regime == "风险偏好回升":
+        return (
+            f"今日全球资金偏向{best_regions}以及{best_themes}，"
+            "成长资产重新获得相对收益优势，但防御资金尚未完全退出。"
+        )
+    if analysis.regime == "高利率压制":
+        return (
+            f"今日全球资金继续向{best_regions}和{best_themes}等确定性方向收缩，"
+            "高利率环境仍在压制广谱风险偏好。"
+        )
+    return (
+        f"今日全球资金仍在做相对收益切换，当前更偏向{best_regions}与{best_themes}等强势方向，"
+        "弱势市场则主要受制于新增叙事不足和资金承接偏弱。"
+    )
 
 
 def _extract_cot_weekly_change(signal: WeeklySignal) -> str | None:
@@ -148,10 +167,10 @@ def build_report(
 
     title = f"{date_label} {effective_brand}"
     headline = f"{date_label} | {analysis.regime}"
-    summary = f"今日全球资金偏向{best_regions}与{best_themes}，整体处于“{analysis.regime}”框架。"
+    summary = _market_overview(analysis, best_regions, best_themes)
 
     weakest_lines = [
-        f"- {item.name}（{item.symbol}）日涨跌 {item.daily_return:+.2f}%，解释：{_weak_reason(item, analysis.macro_flags)}"
+        f"- **{item.name}（{item.symbol}）**：日涨跌 {item.daily_return:+.2f}%。逻辑：{_weak_reason(item, analysis.macro_flags)}"
         for item in analysis.weakest_markets
     ]
     macro_lines = (
@@ -170,10 +189,10 @@ def build_report(
         "## 第1层：日频免费主报告",
         "",
         "### 四分法结论",
-        f"- 叙事判断：{analysis.narrative}",
-        "- 业绩判断：强势市场集中在盈利确定性更高的龙头与半导体链。",
-        f"- 交易判断：最强方向是{best_regions}与{best_themes}，弱势市场则面临相对收益流失。",
-        f"- {analysis.positioning}",
+        f"- **叙事判断**：{analysis.narrative}",
+        "- **业绩判断**：资金继续向盈利确定性更高的龙头个股、AI 半导体链和能源方向集中。",
+        f"- **交易判断**：最强方向集中在{best_regions}与{best_themes}，弱势市场面临相对收益流失。",
+        f"- **{analysis.positioning}**",
         "",
         "### 股票地域轮动",
         _format_leaders("强势区域", analysis.top_regions),

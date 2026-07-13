@@ -69,6 +69,76 @@ def _normalize_markdown(markdown: str) -> str:
     return "\n".join(normalized).strip()
 
 
+def _strip_llm_filler(markdown: str) -> str:
+    filtered_lines: list[str] = []
+    filler_patterns = [
+        r"^好的[，,].*",
+        r"^遵照您的指示.*",
+        r"^以下是润色后的.*",
+        r"^下面是润色后的.*",
+        r"^以下为润色后的.*",
+    ]
+    for line in markdown.splitlines():
+        stripped = line.strip()
+        if any(re.match(pattern, stripped) for pattern in filler_patterns):
+            continue
+        filtered_lines.append(line)
+    return "\n".join(filtered_lines).strip()
+
+
+def _canonicalize_intro(markdown: str, bundle: ReportBundle) -> str:
+    lines = markdown.splitlines()
+    canonical_title = f"# {bundle.title}"
+    title_variants = {
+        bundle.title,
+        bundle.title.replace("早报", "晨报"),
+        bundle.title.replace("早报", "日报"),
+    }
+
+    rebuilt: list[str] = []
+    title_written = False
+    quote_written = False
+    summary_heading_written = False
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("# "):
+            heading = stripped[2:].strip()
+            if heading in title_variants:
+                if not title_written:
+                    rebuilt.append(canonical_title)
+                    title_written = True
+                continue
+
+        if stripped.startswith("> 市场状态："):
+            if quote_written:
+                continue
+            rebuilt.append(f"> 市场状态：{bundle.payload.get('headline', '')}")
+            quote_written = True
+            continue
+
+        if stripped in {"## 市场总览", "## 今日一句话"}:
+            if summary_heading_written:
+                continue
+            rebuilt.append("## 今日一句话")
+            summary_heading_written = True
+            continue
+
+        rebuilt.append(line)
+
+    if not title_written:
+        rebuilt.insert(0, canonical_title)
+        rebuilt.insert(1, "")
+    if not quote_written:
+        insert_at = 2 if len(rebuilt) >= 2 else len(rebuilt)
+        rebuilt.insert(insert_at, f"> 市场状态：{bundle.payload.get('headline', '')}")
+        rebuilt.insert(insert_at + 1, "")
+    if not summary_heading_written:
+        insert_at = 4 if len(rebuilt) >= 4 else len(rebuilt)
+        rebuilt.insert(insert_at, "## 今日一句话")
+        rebuilt.insert(insert_at + 1, "")
+    return "\n".join(rebuilt).strip()
+
+
 def _replace_weekly_section(markdown: str, original_markdown: str) -> str:
     section_marker = "## 第2层：周频增强信号"
     if section_marker not in original_markdown:
@@ -105,6 +175,9 @@ def polish_report_with_deepseek(
 7. “为什么其他市场跌”中的每一条都要带一行逻辑解释。
 8. 不要转义 Markdown 语法字符，不要输出 `\|`、`\*`、`\-` 这类写法。
 9. 表格必须保持标准 Markdown 表格格式，表头、分隔线、数据行之间不要插入空行。
+10. 禁止输出任何对话式开场白，例如“好的”“遵照您的指示”“以下是润色后的版本”。
+11. 全文只能保留一个主标题，且必须是 `# {bundle.title}`，不要再写“晨报”“日报”等第二个标题。
+12. 标题下必须保留 `> 市场状态：...` 和 `## 今日一句话`，不要改成“市场总览”。
 
 原始 Markdown：
 {bundle.markdown}
@@ -120,7 +193,9 @@ def polish_report_with_deepseek(
     polished = (response.choices[0].message.content or "").strip()
     if not polished:
         return bundle
+    polished = _strip_llm_filler(polished)
     polished = _normalize_markdown(polished)
+    polished = _canonicalize_intro(polished, bundle)
     polished = _replace_weekly_section(polished, bundle.markdown)
 
     return ReportBundle(
