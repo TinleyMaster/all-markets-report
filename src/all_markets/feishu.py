@@ -64,14 +64,14 @@ def _headers(token: str) -> dict[str, str]:
 
 def extract_folder_token(folder_ref: str) -> str:
     folder_ref = folder_ref.strip()
-    match = re.search(r"(fld[a-zA-Z0-9]+)", folder_ref)
-    if match:
-        return match.group(1)
-    if folder_ref.startswith("fld"):
+    url_match = re.search(r"/drive/folder/([a-zA-Z0-9]+)", folder_ref)
+    if url_match:
+        return url_match.group(1)
+    if re.fullmatch(r"[a-zA-Z0-9]+", folder_ref):
         return folder_ref
     raise FeishuError(
-        "FEISHU_REPORT_FOLDER 必须是飞书云空间文件夹链接或 fld 开头的 folder token，"
-        "例如 https://xxx.feishu.cn/drive/folder/fldxxxxxxxx 或 fldxxxxxxxx。"
+        "FEISHU_REPORT_FOLDER 必须是飞书云空间文件夹链接或文件夹 token，"
+        "例如 https://xxx.feishu.cn/drive/folder/J5pq... 或 J5pq..."
     )
 
 
