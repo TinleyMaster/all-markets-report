@@ -79,24 +79,79 @@ def _text_elements(content: str) -> list[dict]:
     return [{"text_run": {"content": content}}]
 
 
+def _is_markdown_table_line(line: str) -> bool:
+    stripped = line.strip()
+    return (
+        stripped.startswith("|") and stripped.endswith("|") and stripped.count("|") >= 3
+    )
+
+
+def _is_markdown_table_separator(line: str) -> bool:
+    stripped = line.strip().replace(" ", "")
+    if not _is_markdown_table_line(line):
+        return False
+    allowed = {"|", "-", ":"}
+    return set(stripped).issubset(allowed)
+
+
 def markdown_to_blocks(markdown: str) -> list[dict]:
     blocks: list[dict] = []
-    for raw_line in markdown.splitlines():
+    lines = markdown.splitlines()
+    index = 0
+    while index < len(lines):
+        raw_line = lines[index]
         line = raw_line.rstrip()
         if not line:
+            index += 1
             continue
         if line.startswith("# "):
-            blocks.append({"block_type": 3, "heading1": {"elements": _text_elements(line[2:].strip())}})
+            blocks.append(
+                {
+                    "block_type": 3,
+                    "heading1": {"elements": _text_elements(line[2:].strip())},
+                }
+            )
         elif line.startswith("## "):
-            blocks.append({"block_type": 4, "heading2": {"elements": _text_elements(line[3:].strip())}})
+            blocks.append(
+                {
+                    "block_type": 4,
+                    "heading2": {"elements": _text_elements(line[3:].strip())},
+                }
+            )
         elif line.startswith("### "):
-            blocks.append({"block_type": 5, "heading3": {"elements": _text_elements(line[4:].strip())}})
+            blocks.append(
+                {
+                    "block_type": 5,
+                    "heading3": {"elements": _text_elements(line[4:].strip())},
+                }
+            )
         elif line.startswith("- "):
-            blocks.append({"block_type": 12, "bullet": {"elements": _text_elements(line[2:].strip())}})
+            blocks.append(
+                {
+                    "block_type": 12,
+                    "bullet": {"elements": _text_elements(line[2:].strip())},
+                }
+            )
+        elif _is_markdown_table_line(line):
+            table_lines = [line]
+            index += 1
+            while index < len(lines) and _is_markdown_table_line(lines[index].rstrip()):
+                table_lines.append(lines[index].rstrip())
+                index += 1
+
+            visible_rows = [
+                item for item in table_lines if not _is_markdown_table_separator(item)
+            ]
+            for table_line in visible_rows:
+                blocks.append(
+                    {"block_type": 2, "text": {"elements": _text_elements(table_line)}}
+                )
+            continue
         elif line.startswith("|"):
             blocks.append({"block_type": 2, "text": {"elements": _text_elements(line)}})
         else:
             blocks.append({"block_type": 2, "text": {"elements": _text_elements(line)}})
+        index += 1
     return blocks
 
 
@@ -124,7 +179,9 @@ def _list_folder_items(token: str, folder_token: str) -> list[dict]:
     return payload.get("files") or payload.get("items") or []
 
 
-def _find_child_folder(token: str, parent_folder_token: str, folder_name: str) -> str | None:
+def _find_child_folder(
+    token: str, parent_folder_token: str, folder_name: str
+) -> str | None:
     for item in _list_folder_items(token, parent_folder_token):
         item_name = item.get("name") or item.get("title")
         item_type = item.get("type") or item.get("file_type")
@@ -147,17 +204,25 @@ def _create_folder(token: str, parent_folder_token: str, folder_name: str) -> st
     return folder_token
 
 
-def get_or_create_child_folder(token: str, parent_folder_token: str, folder_name: str) -> str:
+def get_or_create_child_folder(
+    token: str, parent_folder_token: str, folder_name: str
+) -> str:
     existed = _find_child_folder(token, parent_folder_token, folder_name)
     if existed:
         return existed
     return _create_folder(token, parent_folder_token, folder_name)
 
 
-def ensure_archive_folder(token: str, parent_folder_ref: str, report_date: datetime) -> str:
+def ensure_archive_folder(
+    token: str, parent_folder_ref: str, report_date: datetime
+) -> str:
     root_folder = extract_folder_token(parent_folder_ref)
-    year_folder = get_or_create_child_folder(token, root_folder, report_date.strftime("%Y"))
-    month_folder = get_or_create_child_folder(token, year_folder, report_date.strftime("%m"))
+    year_folder = get_or_create_child_folder(
+        token, root_folder, report_date.strftime("%Y")
+    )
+    month_folder = get_or_create_child_folder(
+        token, year_folder, report_date.strftime("%m")
+    )
     return month_folder
 
 
@@ -196,7 +261,7 @@ def create_dated_report_document(
 ) -> FeishuDocument:
     token = get_tenant_access_token(credentials)
     archive_folder = ensure_archive_folder(token, parent_folder_ref, report_date)
-    doc_title = f"{report_date.strftime('%Y-%m-%d')} {report_brand}.md"
+    doc_title = f"{report_date.strftime('%Y-%m-%d')} {report_brand}"
     document = create_document(token, doc_title, archive_folder)
     write_document_markdown(token, document.document_id, markdown)
     if not document.url:

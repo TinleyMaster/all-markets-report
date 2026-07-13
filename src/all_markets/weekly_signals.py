@@ -12,15 +12,54 @@ from .fetcher import SymbolSnapshot
 
 
 CFTC_DISAGG_SODA_URL = "https://publicreporting.cftc.gov/resource/72hh-3qpy.json"
+CFTC_TFF_SODA_URL = "https://publicreporting.cftc.gov/resource/yw9f-hn96.json"
 EASTMONEY_NORTHBOUND_URL = "https://push2his.eastmoney.com/api/qt/kamt.kline/get"
-FARSIDE_BTC_FLOW_URL = "https://farside.co.uk/btc/"
+JINA_FARSIDE_PROXY_URL = "https://r.jina.ai/http://farside.co.uk/btc/"
 
-COT_TARGETS = {
-    "标普500期货": "E-MINI S&P 500 STOCK INDEX - CHICAGO MERCANTILE EXCHANGE",
-    "美债10年期货": "10-YEAR U.S. TREASURY NOTES - CHICAGO BOARD OF TRADE",
-    "欧元期货": "EURO FX - CHICAGO MERCANTILE EXCHANGE",
-    "黄金期货": "GOLD - COMMODITY EXCHANGE INC.",
-    "WTI原油期货": "CRUDE OIL, LIGHT SWEET - NEW YORK MERCANTILE EXCHANGE",
+FINANCIAL_COT_TARGETS = {
+    "标普500期货": {
+        "code": "13874A",
+        "net_long": "asset_mgr_positions_long",
+        "net_short": "asset_mgr_positions_short",
+        "change_long": "change_in_asset_mgr_long",
+        "change_short": "change_in_asset_mgr_short",
+        "sentiment_label": "资管机构",
+    },
+    "美债10年期货": {
+        "code": "043602",
+        "net_long": "asset_mgr_positions_long",
+        "net_short": "asset_mgr_positions_short",
+        "change_long": "change_in_asset_mgr_long",
+        "change_short": "change_in_asset_mgr_short",
+        "sentiment_label": "资管机构",
+    },
+    "欧元期货": {
+        "code": "099741",
+        "net_long": "asset_mgr_positions_long",
+        "net_short": "asset_mgr_positions_short",
+        "change_long": "change_in_asset_mgr_long",
+        "change_short": "change_in_asset_mgr_short",
+        "sentiment_label": "资管机构",
+    },
+}
+
+COMMODITY_COT_TARGETS = {
+    "黄金期货": {
+        "code": "088691",
+        "net_long": "m_money_positions_long_all",
+        "net_short": "m_money_positions_short_all",
+        "change_long": "change_in_m_money_long_all",
+        "change_short": "change_in_m_money_short_all",
+        "sentiment_label": "管理资金",
+    },
+    "WTI原油期货": {
+        "code": "067651",
+        "net_long": "m_money_positions_long_all",
+        "net_short": "m_money_positions_short_all",
+        "change_long": "change_in_m_money_long_all",
+        "change_short": "change_in_m_money_short_all",
+        "sentiment_label": "管理资金",
+    },
 }
 
 
@@ -48,8 +87,12 @@ class WeeklyValidation:
         return {
             "highlights": self.highlights,
             "cot_signals": [asdict(item) for item in self.cot_signals],
-            "northbound_signal": asdict(self.northbound_signal) if self.northbound_signal else None,
-            "btc_etf_signal": asdict(self.btc_etf_signal) if self.btc_etf_signal else None,
+            "northbound_signal": asdict(self.northbound_signal)
+            if self.northbound_signal
+            else None,
+            "btc_etf_signal": asdict(self.btc_etf_signal)
+            if self.btc_etf_signal
+            else None,
             "credit_signal": asdict(self.credit_signal) if self.credit_signal else None,
             "errors": self.errors,
         }
@@ -63,10 +106,14 @@ def _to_float(value: Any) -> float:
         return 0.0
     if text.startswith("(") and text.endswith(")"):
         text = f"-{text[1:-1]}"
+    if text.startswith("$"):
+        text = text[1:]
     return float(text)
 
 
-def _classify_direction(value: float, positive_threshold: float = 0.0, negative_threshold: float = 0.0) -> str:
+def _classify_direction(
+    value: float, positive_threshold: float = 0.0, negative_threshold: float = 0.0
+) -> str:
     if value > positive_threshold:
         return "流入"
     if value < negative_threshold:
@@ -86,74 +133,100 @@ def _classify_cot_posture(net_pct_oi: float) -> str:
     return "中性"
 
 
-def _flatten_columns(columns: pd.Index) -> list[str]:
-    flattened: list[str] = []
-    for column in columns:
-        if isinstance(column, tuple):
-            parts = [str(item).strip() for item in column if str(item).strip() and str(item).strip().lower() != "nan"]
-            flattened.append(" ".join(parts))
-        else:
-            flattened.append(str(column))
-    return flattened
+def _fetch_latest_cot_row(url: str, contract_code: str) -> dict[str, Any] | None:
+    response = requests.get(
+        url,
+        params={
+            "cftc_contract_market_code": contract_code,
+            "$order": "report_date_as_yyyy_mm_dd DESC",
+            "$limit": 1,
+        },
+        timeout=30,
+    )
+    response.raise_for_status()
+    rows = response.json()
+    return rows[0] if rows else None
+
+
+def _build_cot_signal(
+    name: str,
+    row: dict[str, Any],
+    net_long_field: str,
+    net_short_field: str,
+    change_long_field: str,
+    change_short_field: str,
+    sentiment_label: str,
+    source: str,
+) -> WeeklySignal:
+    long_contracts = _to_float(row.get(net_long_field))
+    short_contracts = _to_float(row.get(net_short_field))
+    open_interest = max(_to_float(row.get("open_interest_all")), 1.0)
+    net_contracts = long_contracts - short_contracts
+    weekly_change = _to_float(row.get(change_long_field)) - _to_float(
+        row.get(change_short_field)
+    )
+    net_pct_oi = net_contracts / open_interest * 100
+    posture = _classify_cot_posture(net_pct_oi)
+    if weekly_change > 0:
+        change_direction = "继续加多"
+    elif weekly_change < 0:
+        change_direction = "继续减仓"
+    else:
+        change_direction = "变化有限"
+
+    return WeeklySignal(
+        name=name,
+        as_of=str(row.get("report_date_as_yyyy_mm_dd", ""))[:10],
+        direction=posture,
+        value=f"净仓 {net_contracts:,.0f} 张，占 OI {net_pct_oi:.1f}%",
+        summary=f"{sentiment_label}在{name}上的仓位为“{posture}”，周度净变动 {weekly_change:,.0f} 张，说明机构在{change_direction}。",
+        source=source,
+        details={
+            "market_name": row.get("market_and_exchange_names"),
+            "net_contracts": round(net_contracts, 2),
+            "net_pct_open_interest": round(net_pct_oi, 2),
+            "weekly_change_contracts": round(weekly_change, 2),
+        },
+    )
 
 
 def fetch_cftc_cot_signals() -> list[WeeklySignal]:
-    session = requests.Session()
     signals: list[WeeklySignal] = []
-    for display_name, market_name in COT_TARGETS.items():
-        where_value = market_name.replace("'", "''")
-        response = session.get(
-            CFTC_DISAGG_SODA_URL,
-            params={
-                "$select": ",".join(
-                    [
-                        "market_and_exchange_names",
-                        "report_date_as_yyyy_mm_dd",
-                        "open_interest_all",
-                        "m_money_positions_long_all",
-                        "m_money_positions_short_all",
-                        "change_in_m_money_long_all",
-                        "change_in_m_money_short_all",
-                    ]
-                ),
-                "$where": f"market_and_exchange_names='{where_value}' AND futonly_or_combined='FutOnly'",
-                "$order": "report_date_as_yyyy_mm_dd DESC",
-                "$limit": 1,
-            },
-            timeout=30,
-        )
-        response.raise_for_status()
-        rows = response.json()
-        if not rows:
+
+    for display_name, spec in FINANCIAL_COT_TARGETS.items():
+        row = _fetch_latest_cot_row(CFTC_TFF_SODA_URL, spec["code"])
+        if not row:
             continue
-
-        row = rows[0]
-        long_contracts = _to_float(row.get("m_money_positions_long_all"))
-        short_contracts = _to_float(row.get("m_money_positions_short_all"))
-        open_interest = max(_to_float(row.get("open_interest_all")), 1.0)
-        net_contracts = long_contracts - short_contracts
-        weekly_change = _to_float(row.get("change_in_m_money_long_all")) - _to_float(
-            row.get("change_in_m_money_short_all")
-        )
-        net_pct_oi = net_contracts / open_interest * 100
-        posture = _classify_cot_posture(net_pct_oi)
-        change_direction = "继续加多" if weekly_change > 0 else "继续减仓" if weekly_change < 0 else "变化有限"
-
         signals.append(
-            WeeklySignal(
+            _build_cot_signal(
                 name=display_name,
-                as_of=str(row.get("report_date_as_yyyy_mm_dd", ""))[:10],
-                direction=posture,
-                value=f"净仓 {net_contracts:,.0f} 张，占 OI {net_pct_oi:.1f}%",
-                summary=f"{display_name} 的管理资金仓位为“{posture}”，周度净变动 {weekly_change:,.0f} 张，说明机构在 {change_direction}。",
-                source="CFTC COT",
-                details={
-                    "net_contracts": round(net_contracts, 2),
-                    "net_pct_open_interest": round(net_pct_oi, 2),
-                    "weekly_change_contracts": round(weekly_change, 2),
-                },
+                row=row,
+                net_long_field=spec["net_long"],
+                net_short_field=spec["net_short"],
+                change_long_field=spec["change_long"],
+                change_short_field=spec["change_short"],
+                sentiment_label=spec["sentiment_label"],
+                source="CFTC TFF",
             )
         )
+
+    for display_name, spec in COMMODITY_COT_TARGETS.items():
+        row = _fetch_latest_cot_row(CFTC_DISAGG_SODA_URL, spec["code"])
+        if not row:
+            continue
+        signals.append(
+            _build_cot_signal(
+                name=display_name,
+                row=row,
+                net_long_field=spec["net_long"],
+                net_short_field=spec["net_short"],
+                change_long_field=spec["change_long"],
+                change_short_field=spec["change_short"],
+                sentiment_label=spec["sentiment_label"],
+                source="CFTC Disaggregated",
+            )
+        )
+
     return signals
 
 
@@ -169,6 +242,7 @@ def fetch_northbound_signal(days: int = 5) -> WeeklySignal | None:
             "cb": "jQuery18305732402561585701_1584961751919",
             "_": "1584962164273",
         },
+        headers={"User-Agent": "Mozilla/5.0", "Referer": "https://data.eastmoney.com/"},
         timeout=30,
     )
     response.raise_for_status()
@@ -193,13 +267,27 @@ def fetch_northbound_signal(days: int = 5) -> WeeklySignal | None:
     recent_total = total_series[-days:]
     recent_sh = sh_series[-days:]
     recent_sz = sz_series[-days:]
-
     total_5d = sum(value for _, value in recent_total)
     sh_5d = sum(value for _, value in recent_sh)
     sz_5d = sum(value for _, value in recent_sz)
     as_of = recent_total[-1][0]
-    direction = _classify_direction(total_5d)
 
+    if recent_total and all(abs(value) < 1e-9 for _, value in recent_total):
+        return WeeklySignal(
+            name="A股北向资金",
+            as_of=as_of,
+            direction="待更新",
+            value=f"近{days}日源站连续返回 0.0 亿",
+            summary=f"东方财富北向资金接口近{days}个交易日连续返回 0.0，疑似源站未更新或返回占位值，本期暂不据此下资金结论。",
+            source="Eastmoney kamt.kline",
+            details={
+                "days": days,
+                "status": "all_zero_placeholder",
+                "northbound_series": recent_total,
+            },
+        )
+
+    direction = _classify_direction(total_5d)
     return WeeklySignal(
         name="A股北向资金",
         as_of=as_of,
@@ -216,26 +304,50 @@ def fetch_northbound_signal(days: int = 5) -> WeeklySignal | None:
     )
 
 
+def _extract_farside_table_markdown(text: str) -> str:
+    lines = text.splitlines()
+    table_lines = [line.strip() for line in lines if line.strip().startswith("|")]
+    return "\n".join(table_lines)
+
+
+def _parse_flow_cell(value: Any) -> float:
+    text = str(value).strip()
+    if text in {"-", "", "nan"}:
+        return 0.0
+    return _to_float(text)
+
+
 def fetch_btc_etf_signal(days: int = 5) -> WeeklySignal | None:
-    response = requests.get(FARSIDE_BTC_FLOW_URL, timeout=30)
+    response = requests.get(
+        JINA_FARSIDE_PROXY_URL,
+        headers={"User-Agent": "Mozilla/5.0"},
+        timeout=30,
+    )
     response.raise_for_status()
-    tables = pd.read_html(StringIO(response.text))
+    table_markdown = _extract_farside_table_markdown(response.text)
+    if not table_markdown:
+        return None
+
+    tables = pd.read_html(StringIO(table_markdown))
     if not tables:
         return None
 
     table = tables[0].copy()
-    table.columns = _flatten_columns(table.columns)
+    table.columns = [str(column).strip() for column in table.columns]
     date_column = table.columns[0]
-    total_column = next((column for column in table.columns if "Total" in column and column != date_column), table.columns[-1])
-
-    table[date_column] = table[date_column].astype(str).str.strip()
-    date_rows = table[table[date_column].str.match(r"^\d{2} \w{3} \d{4}$", na=False)].copy()
+    total_column = table.columns[-1]
+    date_rows = table[
+        table[date_column].astype(str).str.match(r"^\d{2} \w{3} \d{4}$", na=False)
+    ].copy()
     if date_rows.empty:
         return None
 
-    date_rows["parsed_date"] = pd.to_datetime(date_rows[date_column], format="%d %b %Y", errors="coerce")
+    date_rows["parsed_date"] = pd.to_datetime(
+        date_rows[date_column], format="%d %b %Y", errors="coerce"
+    )
     date_rows = date_rows.dropna(subset=["parsed_date"]).sort_values("parsed_date")
-    date_rows["total_flow_usd_m"] = date_rows[total_column].apply(_to_float)
+    date_rows["total_flow_usd_m"] = date_rows[total_column].apply(_parse_flow_cell)
+
     recent_rows = date_rows.tail(days).copy()
     latest_row = recent_rows.iloc[-1]
     weekly_total = float(recent_rows["total_flow_usd_m"].sum())
@@ -243,13 +355,15 @@ def fetch_btc_etf_signal(days: int = 5) -> WeeklySignal | None:
 
     etf_columns = [
         column
-        for column in date_rows.columns
-        if column not in {date_column, total_column, "parsed_date", "total_flow_usd_m"} and "Fee" not in column
+        for column in table.columns
+        if column not in {date_column, total_column, "parsed_date", "total_flow_usd_m"}
+        and not str(column).startswith("Unnamed:")
+        and str(column) not in {"Fee", "BTC"}
     ]
     latest_breakdown = {
-        column.split()[-1]: _to_float(latest_row[column])
+        str(column): _parse_flow_cell(latest_row[column])
         for column in etf_columns
-        if str(latest_row[column]).strip() not in {"", "nan"}
+        if str(latest_row[column]).strip() not in {"", "nan", "-"}
     }
     top_inflow = max(latest_breakdown.items(), key=lambda item: item[1], default=None)
     top_outflow = min(latest_breakdown.items(), key=lambda item: item[1], default=None)
@@ -266,17 +380,19 @@ def fetch_btc_etf_signal(days: int = 5) -> WeeklySignal | None:
         direction=direction,
         value=f"近{days}日净流入 {weekly_total:+.1f} 百万美元",
         summary=f"美国 BTC 现货 ETF 近{days}个交易日累计{direction} {abs(weekly_total):.1f} 百万美元；{leader_text}。",
-        source="Farside Investors",
+        source="Farside Investors via Jina proxy",
         details={
             "days": days,
             "weekly_total_flow_usd_m": round(weekly_total, 2),
-            "latest_day_flow_usd_m": round(float(latest_row['total_flow_usd_m']), 2),
+            "latest_day_flow_usd_m": round(float(latest_row["total_flow_usd_m"]), 2),
             "latest_breakdown_usd_m": latest_breakdown,
         },
     )
 
 
-def build_credit_signal(cross_asset_snapshots: list[SymbolSnapshot]) -> WeeklySignal | None:
+def build_credit_signal(
+    cross_asset_snapshots: list[SymbolSnapshot],
+) -> WeeklySignal | None:
     snapshot_map = {item.symbol: item for item in cross_asset_snapshots}
     lqd = snapshot_map.get("LQD")
     hyg = snapshot_map.get("HYG")
@@ -286,7 +402,9 @@ def build_credit_signal(cross_asset_snapshots: list[SymbolSnapshot]) -> WeeklySi
 
     risk_spread = hyg.weekly_return - lqd.weekly_return
     junk_spread = (jnk.weekly_return - lqd.weekly_return) if jnk else 0.0
-    direction = "偏好提升" if risk_spread > 0 else "偏好回落" if risk_spread < 0 else "中性"
+    direction = (
+        "偏好提升" if risk_spread > 0 else "偏好回落" if risk_spread < 0 else "中性"
+    )
     summary = (
         f"高收益债相对投资级信用债 5 日超额收益 {risk_spread:+.2f}pct，"
         f"垃圾债相对投资级信用债 {junk_spread:+.2f}pct，信用风险偏好为“{direction}”。"
@@ -309,7 +427,9 @@ def build_credit_signal(cross_asset_snapshots: list[SymbolSnapshot]) -> WeeklySi
     )
 
 
-def build_weekly_validation(cross_asset_snapshots: list[SymbolSnapshot]) -> WeeklyValidation:
+def build_weekly_validation(
+    cross_asset_snapshots: list[SymbolSnapshot],
+) -> WeeklyValidation:
     cot_signals: list[WeeklySignal] = []
     northbound_signal: WeeklySignal | None = None
     btc_etf_signal: WeeklySignal | None = None

@@ -70,12 +70,19 @@ def _weekly_markdown(weekly_validation: WeeklyValidation | None) -> list[str]:
 
     lines = ["## 第2层：周频增强信号"]
     if weekly_validation.highlights:
-        lines.extend(["### 真实流量补充验证", *[f"- {item}" for item in weekly_validation.highlights]])
+        lines.extend(
+            [
+                "### 真实流量补充验证",
+                *[f"- {item}" for item in weekly_validation.highlights],
+            ]
+        )
 
     if weekly_validation.cot_signals:
         lines.append("")
         lines.append("### CFTC COT")
-        lines.extend(_format_weekly_signal(signal) for signal in weekly_validation.cot_signals)
+        lines.extend(
+            _format_weekly_signal(signal) for signal in weekly_validation.cot_signals
+        )
 
     if weekly_validation.northbound_signal:
         lines.append("")
@@ -112,17 +119,23 @@ def build_report(
     best_regions = _join_names(analysis.top_regions, "全球强势市场")
     best_themes = _join_names(analysis.top_themes, "成长主线")
 
-    title = f"{date_label} | {analysis.regime}"
+    title = f"{date_label} {effective_brand}"
+    headline = f"{date_label} | {analysis.regime}"
     summary = f"今日全球资金偏向{best_regions}与{best_themes}，整体处于“{analysis.regime}”框架。"
 
     weakest_lines = [
         f"- {item.name}（{item.symbol}）日涨跌 {item.daily_return:+.2f}%，解释：{_weak_reason(item, analysis.macro_flags)}"
         for item in analysis.weakest_markets
     ]
-    macro_lines = "\n".join(f"- {flag}" for flag in analysis.macro_flags) or "- 宏观变量波动有限，市场更关注相对收益。"
+    macro_lines = (
+        "\n".join(f"- {flag}" for flag in analysis.macro_flags)
+        or "- 宏观变量波动有限，市场更关注相对收益。"
+    )
 
     markdown_lines = [
         f"# {title}",
+        "",
+        f"> 市场状态：{headline}",
         "",
         "## 今日一句话",
         summary,
@@ -160,9 +173,13 @@ def build_report(
     ]
     markdown = "\n".join(markdown_lines)
 
-    weekly_summary = weekly_validation.highlights[0] if weekly_validation and weekly_validation.highlights else None
+    weekly_summary = (
+        weekly_validation.highlights[0]
+        if weekly_validation and weekly_validation.highlights
+        else None
+    )
     short_text_lines = [
-        title,
+        f"市场状态：{analysis.regime}",
         f"一句话：{summary}",
         f"叙事判断：{analysis.narrative}",
         f"交易判断：领涨方向为{best_regions}、{best_themes}。",
@@ -175,10 +192,13 @@ def build_report(
     payload = {
         "date": date_label,
         "title": title,
+        "headline": headline,
         "report_brand": effective_brand,
         "summary": summary,
         "analysis": asdict(analysis),
-        "weekly_validation": weekly_validation.to_payload() if weekly_validation else None,
+        "weekly_validation": weekly_validation.to_payload()
+        if weekly_validation
+        else None,
         "markdown": markdown,
     }
     json.loads(json.dumps(payload, ensure_ascii=False))
