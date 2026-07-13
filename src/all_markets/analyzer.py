@@ -156,6 +156,7 @@ def _cross_asset_rows(items: list[SymbolSnapshot]) -> list[dict]:
         "fx": "外汇",
         "commodities": "大宗商品",
         "us_rates": "美债",
+        "credit": "信用债",
     }
     return [
         {

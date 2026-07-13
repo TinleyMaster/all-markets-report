@@ -1,8 +1,8 @@
 timezone: Asia/Shanghai
 lookback_days: 15
-top_regions: 4
-top_themes: 4
-top_losers: 4
+top_regions: 5
+top_themes: 6
+top_losers: 5
 
 benchmarks:
   - symbol: SPY
@@ -11,28 +11,70 @@ benchmarks:
   - symbol: QQQ
     name: 纳指100
     bucket: us_growth
+  - symbol: IWM
+    name: 罗素2000
+    bucket: us_small_cap
+  - symbol: 000300.SS
+    name: 沪深300
+    bucket: a_share
+  - symbol: 399006.SZ
+    name: 创业板指
+    bucket: a_share_growth
+  - symbol: ^HSI
+    name: 恒生指数
+    bucket: hong_kong
+  - symbol: ^TWII
+    name: 台湾加权
+    bucket: taiwan
   - symbol: VGK
     name: 欧洲股市
     bucket: europe
+  - symbol: ^FTSE
+    name: 英国富时100
+    bucket: uk
+  - symbol: ^GDAXI
+    name: 德国DAX
+    bucket: germany
+  - symbol: ^FCHI
+    name: 法国CAC40
+    bucket: france
   - symbol: EWJ
     name: 日本股市
     bucket: japan
   - symbol: EWY
     name: 韩国股市
     bucket: korea
-  - symbol: MCHI
-    name: 中国股市
-    bucket: china
+  - symbol: EWA
+    name: 澳洲股市
+    bucket: australia
+  - symbol: EWS
+    name: 新加坡股市
+    bucket: singapore
+  - symbol: EIDO
+    name: 印尼股市
+    bucket: indonesia
+  - symbol: THD
+    name: 泰国股市
+    bucket: thailand
   - symbol: INDA
     name: 印度股市
     bucket: india
+  - symbol: EWZ
+    name: 巴西股市
+    bucket: brazil
+  - symbol: EWW
+    name: 墨西哥股市
+    bucket: mexico
+  - symbol: EZA
+    name: 南非股市
+    bucket: south_africa
   - symbol: EEM
     name: 新兴市场
     bucket: emerging
 
 themes:
   - symbol: XLK
-    name: 美股科技
+    name: 信息技术
     theme: us_tech
   - symbol: SOXX
     name: 美股半导体
@@ -40,21 +82,42 @@ themes:
   - symbol: SMH
     name: 半导体ETF
     theme: us_semiconductor
+  - symbol: XLE
+    name: 能源
+    theme: energy
+  - symbol: XLB
+    name: 原材料
+    theme: materials
+  - symbol: XLI
+    name: 工业
+    theme: industrials
+  - symbol: XLY
+    name: 可选消费
+    theme: consumer_discretionary
+  - symbol: XLP
+    name: 必需消费
+    theme: consumer_staples
+  - symbol: XLV
+    name: 医疗健康
+    theme: healthcare
+  - symbol: XLF
+    name: 金融
+    theme: financials
+  - symbol: XLC
+    name: 通信服务
+    theme: communication_services
+  - symbol: XLU
+    name: 公用事业
+    theme: utilities
+  - symbol: XLRE
+    name: 房地产
+    theme: real_estate
+  - symbol: VNQ
+    name: 美国REITs
+    theme: reits
   - symbol: KWEB
     name: 中国互联网
     theme: china_tech
-  - symbol: XLF
-    name: 美国金融
-    theme: us_financials
-  - symbol: XLE
-    name: 美国能源
-    theme: energy
-  - symbol: XLV
-    name: 美国医疗
-    theme: defensives
-  - symbol: EWY
-    name: 韩国股市
-    theme: korea_broad
   - symbol: 005930.KS
     name: 三星电子
     theme: korea_semiconductor
@@ -98,8 +161,20 @@ cross_assets:
   - symbol: EURUSD=X
     name: 欧元兑美元
     macro: fx
+  - symbol: GBPUSD=X
+    name: 英镑兑美元
+    macro: fx
   - symbol: USDJPY=X
     name: 美元兑日元
+    macro: fx
+  - symbol: AUDUSD=X
+    name: 澳元兑美元
+    macro: fx
+  - symbol: USDCAD=X
+    name: 美元兑加元
+    macro: fx
+  - symbol: USDCHF=X
+    name: 美元兑瑞郎
     macro: fx
   - symbol: USDCNH=X
     name: 美元兑离岸人民币
@@ -107,11 +182,26 @@ cross_assets:
   - symbol: GC=F
     name: COMEX黄金期货
     macro: commodities
+  - symbol: SI=F
+    name: COMEX白银期货
+    macro: commodities
   - symbol: CL=F
     name: WTI原油期货
     macro: commodities
+  - symbol: NG=F
+    name: NYMEX天然气期货
+    macro: commodities
   - symbol: HG=F
     name: COMEX铜期货
+    macro: commodities
+  - symbol: ZC=F
+    name: CBOT玉米期货
+    macro: commodities
+  - symbol: ZW=F
+    name: CBOT小麦期货
+    macro: commodities
+  - symbol: ZS=F
+    name: CBOT大豆期货
     macro: commodities
   - symbol: TLT
     name: 美债20年以上ETF
@@ -122,3 +212,12 @@ cross_assets:
   - symbol: SHY
     name: 美债1-3年ETF
     macro: us_rates
+  - symbol: LQD
+    name: 投资级信用债ETF
+    macro: credit
+  - symbol: HYG
+    name: 高收益债ETF
+    macro: credit
+  - symbol: JNK
+    name: 垃圾债ETF
+    macro: credit
