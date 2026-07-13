@@ -1,14 +1,15 @@
-# 全球资金风格流向早报
+# 全球资金流向早报
 
-这是一个基于 `Python + GitHub Actions + DeepSeek + 飞书` 的日频自动化项目，用免费市场数据生成“全球资金流向早报”。
+这是一个基于 `Python + GitHub Actions + DeepSeek + 飞书应用机器人` 的日频自动化项目，用免费市场数据生成“全球资金流向早报”。
 
 ## 功能
 
 - 每日抓取全球主要市场、主题与宏观代理指标
 - 用规则引擎判断资金偏好流向
 - 用 DeepSeek 把规则结果整理成可读的中文晨报
-- 推送精简版到飞书群机器人
-- 追加完整版到飞书云文档
+- 使用飞书应用机器人发送群消息
+- 每天在飞书云空间新建一份归档文档
+- 按 `年份/月` 自动创建目录归档
 - 同时落盘 `Markdown + JSON` 产物，便于复盘与审计
 
 ## 当前判断逻辑
@@ -22,6 +23,19 @@
 - 近 5 日延续性
 - 成交量相对活跃度
 - 美元、长债、VIX、黄金、原油等宏观代理因子
+
+## 飞书归档方式
+
+日报不再追加到固定文档，而是每天新建一份飞书云文档：
+
+- 文档名：`YYYY-MM-DD 全球资金流向早报.md`
+- 归档路径：`你指定的父目录 / 年份 / 月份 / 当日日报文档`
+- 若年份目录或月份目录不存在，脚本会自动创建
+
+说明：
+
+- 飞书“云文档”本质是在线文档，不是真正本地 `.md` 文件
+- 当前实现会创建一个标题带 `.md` 后缀的飞书云文档，并将 Markdown 内容写入其中
 
 ## 本地运行
 
@@ -39,10 +53,16 @@ pip install -r requirements.txt
 
 - `DEEPSEEK_API_KEY`
 - `DEEPSEEK_MODEL`，建议 `deepseek-v4-flash`
-- `FEISHU_WEBHOOK_URL`
 - `FEISHU_APP_ID`
 - `FEISHU_APP_SECRET`
-- `FEISHU_DOC_ID`
+- `FEISHU_CHAT_ID`
+- `FEISHU_REPORT_FOLDER`
+- `REPORT_BRAND`
+
+其中：
+
+- `FEISHU_CHAT_ID` 是飞书群的 `chat_id`
+- `FEISHU_REPORT_FOLDER` 可以直接填写飞书文件夹链接，也可以填写 `fld...` 文件夹 token
 
 3. 运行
 
@@ -56,34 +76,36 @@ python -m all_markets.main
 - `report.md`
 - `report.json`
 
+如果飞书配置完整，还会：
+
+- 在目标群发送日报摘要
+- 在飞书云空间的年/月目录下创建当日日报文档
+
 ## GitHub Actions Secrets
 
 在仓库 `Settings -> Secrets and variables -> Actions` 中新增：
 
 - `DEEPSEEK_API_KEY`
 - `DEEPSEEK_MODEL`
-- `FEISHU_WEBHOOK_URL`
 - `FEISHU_APP_ID`
 - `FEISHU_APP_SECRET`
-- `FEISHU_DOC_ID`
+- `FEISHU_CHAT_ID`
+- `FEISHU_REPORT_FOLDER`
 - `REPORT_BRAND`
 
-## 飞书接入说明
+## 飞书应用要求
 
-### 1. 飞书群机器人
+你的飞书应用需要同时具备两类能力：
 
-- 在目标群中添加自定义机器人
-- 获取 `Webhook URL`
-- 填入 `FEISHU_WEBHOOK_URL`
+- 群机器人发消息
+- 云空间文件夹和云文档创建/写入
 
-### 2. 飞书云文档
+建议你把这个应用加到：
 
-- 在飞书开放平台创建自建应用
-- 为应用申请文档读写权限
-- 获取 `App ID` 和 `App Secret`
-- 新建一个长期归档文档，把文档 ID 填入 `FEISHU_DOC_ID`
+- 目标群聊中
+- 目标归档文件夹的协作者中，并授予可编辑或管理权限
 
-当前实现采用“向已有文档末尾追加内容”的方式，维护成本最低。
+否则即使 API 可调用，也可能没有目标群或目标目录的写权限。
 
 ## 调度时间
 

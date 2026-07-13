@@ -12,10 +12,10 @@ jobs:
     env:
       DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
       DEEPSEEK_MODEL: ${{ secrets.DEEPSEEK_MODEL }}
-      FEISHU_WEBHOOK_URL: ${{ secrets.FEISHU_WEBHOOK_URL }}
       FEISHU_APP_ID: ${{ secrets.FEISHU_APP_ID }}
       FEISHU_APP_SECRET: ${{ secrets.FEISHU_APP_SECRET }}
-      FEISHU_DOC_ID: ${{ secrets.FEISHU_DOC_ID }}
+      FEISHU_CHAT_ID: ${{ secrets.FEISHU_CHAT_ID }}
+      FEISHU_REPORT_FOLDER: ${{ secrets.FEISHU_REPORT_FOLDER }}
       REPORT_BRAND: ${{ secrets.REPORT_BRAND }}
       PYTHONPATH: src
     steps:

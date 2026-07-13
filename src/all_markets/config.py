@@ -20,10 +20,10 @@ class RuntimeConfig:
     config_data: dict[str, Any]
     deepseek_api_key: str | None
     deepseek_model: str
-    feishu_webhook_url: str | None
     feishu_app_id: str | None
     feishu_app_secret: str | None
-    feishu_doc_id: str | None
+    feishu_chat_id: str | None
+    feishu_report_folder: str | None
     report_brand: str
 
 
@@ -45,9 +45,9 @@ def load_runtime_config(workspace: Path | None = None) -> RuntimeConfig:
         config_data=config_data,
         deepseek_api_key=os.getenv("DEEPSEEK_API_KEY"),
         deepseek_model=os.getenv("DEEPSEEK_MODEL", "deepseek-v4-flash"),
-        feishu_webhook_url=os.getenv("FEISHU_WEBHOOK_URL"),
         feishu_app_id=os.getenv("FEISHU_APP_ID"),
         feishu_app_secret=os.getenv("FEISHU_APP_SECRET"),
-        feishu_doc_id=os.getenv("FEISHU_DOC_ID"),
-        report_brand=os.getenv("REPORT_BRAND", "全球资金风格流向早报"),
+        feishu_chat_id=os.getenv("FEISHU_CHAT_ID"),
+        feishu_report_folder=os.getenv("FEISHU_REPORT_FOLDER"),
+        report_brand=os.getenv("REPORT_BRAND", "全球资金流向早报"),
     )

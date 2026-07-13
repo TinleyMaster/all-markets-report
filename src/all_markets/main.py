@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime
 from pathlib import Path
 
 from .analyzer import analyze_market_data
 from .config import load_runtime_config
-from .feishu import FeishuCredentials, append_to_document, push_group_message
+from .feishu import FeishuCredentials, create_dated_report_document, send_group_message
 from .fetcher import fetch_snapshots
 from .llm_writer import polish_report_with_deepseek
 from .report import build_report
@@ -47,19 +48,34 @@ def main() -> None:
 
     json_path, md_path = _save_artifacts(runtime.workspace, bundle.date_label, bundle.payload, bundle.markdown)
 
-    if runtime.feishu_webhook_url:
-        push_group_message(runtime.feishu_webhook_url, bundle.title, bundle.short_text)
-
-    if runtime.feishu_app_id and runtime.feishu_app_secret and runtime.feishu_doc_id:
+    document = None
+    if runtime.feishu_app_id and runtime.feishu_app_secret:
         credentials = FeishuCredentials(
             app_id=runtime.feishu_app_id,
             app_secret=runtime.feishu_app_secret,
-            document_id=runtime.feishu_doc_id,
         )
-        append_to_document(credentials, bundle.markdown)
+        if runtime.feishu_report_folder:
+            report_date = datetime.strptime(bundle.date_label, "%Y-%m-%d")
+            document = create_dated_report_document(
+                credentials=credentials,
+                parent_folder_ref=runtime.feishu_report_folder,
+                report_date=report_date,
+                report_brand=runtime.report_brand,
+                markdown=bundle.markdown,
+            )
+        if runtime.feishu_chat_id:
+            send_group_message(
+                credentials=credentials,
+                chat_id=runtime.feishu_chat_id,
+                title=bundle.title,
+                text=bundle.short_text,
+                document=document,
+            )
 
     print(f"Markdown report saved to: {md_path}")
     print(f"JSON report saved to: {json_path}")
+    if document and document.url:
+        print(f"Feishu doc created: {document.url}")
 
 
 if __name__ == "__main__":
