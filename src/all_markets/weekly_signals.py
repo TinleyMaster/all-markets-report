@@ -2,10 +2,9 @@ from __future__ import annotations
 
 import json
 from dataclasses import asdict, dataclass
-from io import StringIO
+from datetime import datetime
 from typing import Any
 
-import pandas as pd
 import requests
 
 from .fetcher import SymbolSnapshot
@@ -310,6 +309,42 @@ def _extract_farside_table_markdown(text: str) -> str:
     return "\n".join(table_lines)
 
 
+def _split_markdown_table_row(line: str) -> list[str]:
+    stripped = line.strip().strip("|")
+    return [cell.strip() for cell in stripped.split("|")]
+
+
+def _parse_farside_rows(markdown: str) -> list[dict[str, str]]:
+    raw_lines = [line for line in markdown.splitlines() if line.strip()]
+    rows = [_split_markdown_table_row(line) for line in raw_lines]
+    ticker_row = next(
+        (
+            row
+            for row in rows
+            if row
+            and row[0] == ""
+            and any(cell in {"IBIT", "FBTC", "GBTC", "BTC"} for cell in row)
+        ),
+        None,
+    )
+    if ticker_row is None:
+        return []
+
+    columns = ["Date", *ticker_row[1:]]
+    if columns[-1] == "":
+        columns[-1] = "Total"
+
+    parsed_rows: list[dict[str, str]] = []
+    for row in rows:
+        if not row or len(row) < len(columns):
+            continue
+        if not row[0] or not row[0][:2].isdigit():
+            continue
+        normalized = row[: len(columns)]
+        parsed_rows.append(dict(zip(columns, normalized)))
+    return parsed_rows
+
+
 def _parse_flow_cell(value: Any) -> float:
     text = str(value).strip()
     if text in {"-", "", "nan"}:
@@ -328,37 +363,34 @@ def fetch_btc_etf_signal(days: int = 5) -> WeeklySignal | None:
     if not table_markdown:
         return None
 
-    tables = pd.read_html(StringIO(table_markdown))
-    if not tables:
+    parsed_rows = _parse_farside_rows(table_markdown)
+    if not parsed_rows:
         return None
 
-    table = tables[0].copy()
-    table.columns = [str(column).strip() for column in table.columns]
-    date_column = table.columns[0]
-    total_column = table.columns[-1]
-    date_rows = table[
-        table[date_column].astype(str).str.match(r"^\d{2} \w{3} \d{4}$", na=False)
-    ].copy()
-    if date_rows.empty:
+    dated_rows: list[dict[str, Any]] = []
+    for row in parsed_rows:
+        try:
+            parsed_date = datetime.strptime(row["Date"], "%d %b %Y")
+        except ValueError:
+            continue
+        normalized = dict(row)
+        normalized["parsed_date"] = parsed_date
+        normalized["total_flow_usd_m"] = _parse_flow_cell(row.get("Total"))
+        dated_rows.append(normalized)
+
+    if not dated_rows:
         return None
 
-    date_rows["parsed_date"] = pd.to_datetime(
-        date_rows[date_column], format="%d %b %Y", errors="coerce"
-    )
-    date_rows = date_rows.dropna(subset=["parsed_date"]).sort_values("parsed_date")
-    date_rows["total_flow_usd_m"] = date_rows[total_column].apply(_parse_flow_cell)
-
-    recent_rows = date_rows.tail(days).copy()
-    latest_row = recent_rows.iloc[-1]
-    weekly_total = float(recent_rows["total_flow_usd_m"].sum())
+    dated_rows.sort(key=lambda item: item["parsed_date"])
+    recent_rows = dated_rows[-days:]
+    latest_row = recent_rows[-1]
+    weekly_total = float(sum(row["total_flow_usd_m"] for row in recent_rows))
     direction = _classify_direction(weekly_total)
 
     etf_columns = [
         column
-        for column in table.columns
-        if column not in {date_column, total_column, "parsed_date", "total_flow_usd_m"}
-        and not str(column).startswith("Unnamed:")
-        and str(column) not in {"Fee", "BTC"}
+        for column in latest_row.keys()
+        if column not in {"Date", "Total", "parsed_date", "total_flow_usd_m"}
     ]
     latest_breakdown = {
         str(column): _parse_flow_cell(latest_row[column])
