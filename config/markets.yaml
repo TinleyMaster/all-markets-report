@@ -1,0 +1,89 @@
+timezone: Asia/Shanghai
+lookback_days: 15
+top_regions: 4
+top_themes: 4
+top_losers: 4
+
+benchmarks:
+  - symbol: SPY
+    name: 标普500
+    bucket: us_equity
+  - symbol: QQQ
+    name: 纳指100
+    bucket: us_growth
+  - symbol: VGK
+    name: 欧洲股市
+    bucket: europe
+  - symbol: EWJ
+    name: 日本股市
+    bucket: japan
+  - symbol: EWY
+    name: 韩国股市
+    bucket: korea
+  - symbol: MCHI
+    name: 中国股市
+    bucket: china
+  - symbol: INDA
+    name: 印度股市
+    bucket: india
+  - symbol: EEM
+    name: 新兴市场
+    bucket: emerging
+
+themes:
+  - symbol: XLK
+    name: 美股科技
+    theme: us_tech
+  - symbol: SOXX
+    name: 美股半导体
+    theme: us_semiconductor
+  - symbol: SMH
+    name: 半导体ETF
+    theme: us_semiconductor
+  - symbol: KWEB
+    name: 中国互联网
+    theme: china_tech
+  - symbol: XLF
+    name: 美国金融
+    theme: us_financials
+  - symbol: XLE
+    name: 美国能源
+    theme: energy
+  - symbol: XLV
+    name: 美国医疗
+    theme: defensives
+  - symbol: EWY
+    name: 韩国股市
+    theme: korea_broad
+  - symbol: 005930.KS
+    name: 三星电子
+    theme: korea_semiconductor
+  - symbol: 000660.KS
+    name: SK海力士
+    theme: korea_semiconductor
+  - symbol: TSM
+    name: 台积电ADR
+    theme: taiwan_semiconductor
+  - symbol: NVDA
+    name: 英伟达
+    theme: us_ai
+  - symbol: MSFT
+    name: 微软
+    theme: us_ai
+
+macro:
+  - symbol: TLT
+    name: 美债20年
+    macro: duration
+  - symbol: UUP
+    name: 美元指数代理
+    macro: dollar
+  - symbol: GLD
+    name: 黄金
+    macro: gold
+  - symbol: USO
+    name: 原油
+    macro: oil
+  - symbol: ^VIX
+    name: 波动率VIX
+    macro: volatility
