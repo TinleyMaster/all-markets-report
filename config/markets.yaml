@@ -73,7 +73,7 @@ themes:
 
 macro:
   - symbol: TLT
-    name: 美债20年
+    name: 美债20年以上
     macro: duration
   - symbol: UUP
     name: 美元指数代理
@@ -87,3 +87,38 @@ macro:
   - symbol: ^VIX
     name: 波动率VIX
     macro: volatility
+
+cross_assets:
+  - symbol: BTC-USD
+    name: 比特币
+    macro: crypto
+  - symbol: ETH-USD
+    name: 以太坊
+    macro: crypto
+  - symbol: EURUSD=X
+    name: 欧元兑美元
+    macro: fx
+  - symbol: USDJPY=X
+    name: 美元兑日元
+    macro: fx
+  - symbol: USDCNH=X
+    name: 美元兑离岸人民币
+    macro: fx
+  - symbol: GC=F
+    name: COMEX黄金期货
+    macro: commodities
+  - symbol: CL=F
+    name: WTI原油期货
+    macro: commodities
+  - symbol: HG=F
+    name: COMEX铜期货
+    macro: commodities
+  - symbol: TLT
+    name: 美债20年以上ETF
+    macro: us_rates
+  - symbol: IEF
+    name: 美债7-10年ETF
+    macro: us_rates
+  - symbol: SHY
+    name: 美债1-3年ETF
+    macro: us_rates

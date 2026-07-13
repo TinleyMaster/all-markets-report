@@ -29,11 +29,13 @@ def main() -> None:
     benchmark_snapshots = fetch_snapshots(config_data["benchmarks"], runtime.lookback_days)
     theme_snapshots = fetch_snapshots(config_data["themes"], runtime.lookback_days)
     macro_snapshots = fetch_snapshots(config_data["macro"], runtime.lookback_days)
+    cross_asset_snapshots = fetch_snapshots(config_data.get("cross_assets", []), runtime.lookback_days)
 
     analysis = analyze_market_data(
         benchmark_snapshots=benchmark_snapshots,
         theme_snapshots=theme_snapshots,
         macro_snapshots=macro_snapshots,
+        cross_asset_snapshots=cross_asset_snapshots,
         top_regions=runtime.top_regions,
         top_themes=runtime.top_themes,
         top_losers=runtime.top_losers,

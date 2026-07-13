@@ -9,6 +9,9 @@ import yaml
 from dotenv import load_dotenv
 
 
+DEFAULT_REPORT_BRAND = "全球资金流向早报"
+
+
 @dataclass
 class RuntimeConfig:
     workspace: Path
@@ -27,6 +30,14 @@ class RuntimeConfig:
     report_brand: str
 
 
+def _clean_env(name: str) -> str | None:
+    value = os.getenv(name)
+    if value is None:
+        return None
+    value = value.strip()
+    return value or None
+
+
 def load_runtime_config(workspace: Path | None = None) -> RuntimeConfig:
     workspace = workspace or Path.cwd()
     load_dotenv(workspace / ".env")
@@ -43,11 +54,11 @@ def load_runtime_config(workspace: Path | None = None) -> RuntimeConfig:
         top_themes=int(config_data.get("top_themes", 4)),
         top_losers=int(config_data.get("top_losers", 4)),
         config_data=config_data,
-        deepseek_api_key=os.getenv("DEEPSEEK_API_KEY"),
-        deepseek_model=os.getenv("DEEPSEEK_MODEL", "deepseek-v4-flash"),
-        feishu_app_id=os.getenv("FEISHU_APP_ID"),
-        feishu_app_secret=os.getenv("FEISHU_APP_SECRET"),
-        feishu_chat_id=os.getenv("FEISHU_CHAT_ID"),
-        feishu_report_folder=os.getenv("FEISHU_REPORT_FOLDER"),
-        report_brand=os.getenv("REPORT_BRAND", "全球资金流向早报"),
+        deepseek_api_key=_clean_env("DEEPSEEK_API_KEY"),
+        deepseek_model=_clean_env("DEEPSEEK_MODEL") or "deepseek-v4-flash",
+        feishu_app_id=_clean_env("FEISHU_APP_ID"),
+        feishu_app_secret=_clean_env("FEISHU_APP_SECRET"),
+        feishu_chat_id=_clean_env("FEISHU_CHAT_ID"),
+        feishu_report_folder=_clean_env("FEISHU_REPORT_FOLDER"),
+        report_brand=_clean_env("REPORT_BRAND") or DEFAULT_REPORT_BRAND,
     )

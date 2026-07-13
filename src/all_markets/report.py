@@ -17,16 +17,32 @@ class ReportBundle:
     payload: dict
 
 
+def _join_names(leaders: list[MarketLeader], fallback: str) -> str:
+    names = [item.name for item in leaders[:2]]
+    return "、".join(names) if names else fallback
+
+
 def _format_leaders(title: str, leaders: list[MarketLeader]) -> str:
     lines = [f"### {title}"]
     for item in leaders:
         lines.append(
-            f"- {item.name}（{item.symbol}）: 日涨跌 {item.daily_return:+.2f}%，5日 {item.weekly_return:+.2f}%，原因：{item.reason}"
+            f"- {item.name}（{item.symbol}）日涨跌 {item.daily_return:+.2f}%，5日 {item.weekly_return:+.2f}%，原因：{item.reason}"
         )
     return "\n".join(lines)
 
 
-def _table_markdown(rows: list[dict]) -> str:
+def _table_markdown(rows: list[dict], include_asset_class: bool = False) -> str:
+    if include_asset_class:
+        lines = [
+            "| 资产类别 | 标的 | 代码 | 日涨跌 | 5日涨跌 |",
+            "| --- | --- | --- | ---: | ---: |",
+        ]
+        for row in rows:
+            lines.append(
+                f"| {row['asset_class']} | {row['name']} | {row['symbol']} | {row['daily_return']:+.2f}% | {row['weekly_return']:+.2f}% |"
+            )
+        return "\n".join(lines)
+
     lines = ["| 标的 | 代码 | 日涨跌 | 5日涨跌 |", "| --- | --- | ---: | ---: |"]
     for row in rows:
         lines.append(
@@ -46,13 +62,15 @@ def _weak_reason(item: MarketLeader, macro_flags: list[str]) -> str:
 def build_report(brand: str, timezone: str, analysis: AnalysisResult) -> ReportBundle:
     now = datetime.now(ZoneInfo(timezone))
     date_label = now.strftime("%Y-%m-%d")
-    best_regions = "、".join(item.name for item in analysis.top_regions[:2])
-    best_themes = "、".join(item.name for item in analysis.top_themes[:2])
-    title = f"{brand} | {date_label} | {analysis.regime}"
+    effective_brand = brand.strip() or "全球资金流向早报"
+    best_regions = _join_names(analysis.top_regions, "全球强势市场")
+    best_themes = _join_names(analysis.top_themes, "成长主线")
+
+    title = f"{date_label} | {analysis.regime}"
     summary = f"今日全球资金偏向{best_regions}与{best_themes}，整体处于“{analysis.regime}”框架。"
 
     weakest_lines = [
-        f"- {item.name}（{item.symbol}）: 日涨跌 {item.daily_return:+.2f}%，解释：{_weak_reason(item, analysis.macro_flags)}"
+        f"- {item.name}（{item.symbol}）日涨跌 {item.daily_return:+.2f}%，解释：{_weak_reason(item, analysis.macro_flags)}"
         for item in analysis.weakest_markets
     ]
     macro_lines = "\n".join(f"- {flag}" for flag in analysis.macro_flags) or "- 宏观变量波动有限，市场更关注相对收益。"
@@ -66,7 +84,7 @@ def build_report(brand: str, timezone: str, analysis: AnalysisResult) -> ReportB
             "",
             "## 四分法结论",
             f"- 叙事判断：{analysis.narrative}",
-            f"- 业绩判断：强势市场集中在盈利确定性更高的龙头与半导体链。",
+            "- 业绩判断：强势市场集中在盈利确定性更高的龙头与半导体链。",
             f"- 交易判断：最强方向是{best_regions}与{best_themes}，弱势市场则面临相对收益流失。",
             f"- {analysis.positioning}",
             "",
@@ -86,12 +104,15 @@ def build_report(brand: str, timezone: str, analysis: AnalysisResult) -> ReportB
             "",
             "## 主题表现",
             _table_markdown(analysis.theme_table),
+            "",
+            "## 跨资产表现",
+            _table_markdown(analysis.cross_asset_table, include_asset_class=True),
         ]
     )
 
     short_text = "\n".join(
         [
-            f"{title}",
+            title,
             f"一句话：{summary}",
             f"叙事判断：{analysis.narrative}",
             f"交易判断：领涨方向为{best_regions}、{best_themes}。",
@@ -102,6 +123,7 @@ def build_report(brand: str, timezone: str, analysis: AnalysisResult) -> ReportB
     payload = {
         "date": date_label,
         "title": title,
+        "report_brand": effective_brand,
         "summary": summary,
         "analysis": asdict(analysis),
         "markdown": markdown,
