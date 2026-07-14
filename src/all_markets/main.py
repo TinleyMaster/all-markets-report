@@ -10,7 +10,7 @@ from .event_calendar import build_event_calendar
 from .feishu import FeishuCredentials, create_dated_report_document, send_group_message
 from .fetcher import fetch_snapshots
 from .llm_writer import polish_report_with_deepseek
-from .news_digest import fetch_news_digest
+from .news_digest import fetch_news_digest, localize_news_digest_with_deepseek
 from .report import build_report
 from .weekly_signals import build_weekly_validation
 
@@ -59,6 +59,13 @@ def main() -> None:
         news_digest = fetch_news_digest(runtime.news_sources)
     except Exception as error:  # pragma: no cover - network path
         runtime_notes.append(f"新闻层抓取失败：{error}")
+    if news_digest and runtime.deepseek_api_key:
+        try:
+            news_digest = localize_news_digest_with_deepseek(
+                news_digest, runtime.deepseek_api_key, runtime.deepseek_model
+            )
+        except Exception as error:  # pragma: no cover - network path
+            runtime_notes.append(f"新闻层中文化失败：{error}")
     try:
         event_calendar = build_event_calendar(runtime.event_calendar)
     except Exception as error:  # pragma: no cover - config path

@@ -118,7 +118,8 @@ def _format_news_item(item: NewsItem) -> str:
     if item.published_at:
         details.append(item.published_at)
     detail_text = f"（{' | '.join(details)}）" if details else ""
-    return f"- **{item.title}**{detail_text}"
+    display_title = item.zh_title or item.title
+    return f"- **{display_title}**{detail_text}"
 
 
 def _news_markdown(news_digest: NewsDigest | None) -> list[str]:
