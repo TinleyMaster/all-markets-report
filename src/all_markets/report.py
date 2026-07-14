@@ -6,6 +6,8 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from .analyzer import AnalysisResult, MarketLeader
+from .event_calendar import EventCalendar
+from .news_digest import NewsDigest, NewsItem, NewsSection
 from .weekly_signals import WeeklySignal, WeeklyValidation
 
 
@@ -109,6 +111,50 @@ def _format_single_weekly_signal(signal: WeeklySignal) -> str:
     return f"- {signal.summary}"
 
 
+def _format_news_item(item: NewsItem) -> str:
+    details: list[str] = []
+    if item.source:
+        details.append(item.source)
+    if item.published_at:
+        details.append(item.published_at)
+    detail_text = f"（{' | '.join(details)}）" if details else ""
+    return f"- **{item.title}**{detail_text}"
+
+
+def _news_markdown(news_digest: NewsDigest | None) -> list[str]:
+    if news_digest is None or not news_digest.sections:
+        return []
+
+    lines = ["## 主线新闻追踪", ""]
+    for section in news_digest.sections:
+        lines.extend(_news_section_lines(section))
+        lines.append("")
+
+    if news_digest.errors:
+        lines.append("### 新闻层备注")
+        lines.extend(f"- {item}" for item in news_digest.errors[:3])
+        lines.append("")
+    return lines[:-1] if lines and lines[-1] == "" else lines
+
+
+def _news_section_lines(section: NewsSection) -> list[str]:
+    lines = [f"### {section.title}"]
+    lines.extend(_format_news_item(item) for item in section.items)
+    return lines
+
+
+def _calendar_markdown(event_calendar: EventCalendar | None) -> list[str]:
+    if event_calendar is None or not event_calendar.upcoming:
+        return []
+
+    lines = ["## 本周重磅日历", ""]
+    for item in event_calendar.upcoming:
+        lines.append(
+            f"- **{item.date_label} | {item.label}**：{item.impact}（来源：{item.source}）"
+        )
+    return lines
+
+
 def _weekly_markdown(weekly_validation: WeeklyValidation | None) -> list[str]:
     if weekly_validation is None:
         return ["## 第2层：周频增强信号", "- 暂无周频增强数据。"]
@@ -158,6 +204,8 @@ def build_report(
     timezone: str,
     analysis: AnalysisResult,
     weekly_validation: WeeklyValidation | None = None,
+    news_digest: NewsDigest | None = None,
+    event_calendar: EventCalendar | None = None,
 ) -> ReportBundle:
     now = datetime.now(ZoneInfo(timezone))
     date_label = now.strftime("%Y-%m-%d")
@@ -168,6 +216,8 @@ def build_report(
     title = f"{date_label} {effective_brand}"
     headline = f"{date_label} | {analysis.regime}"
     summary = _market_overview(analysis, best_regions, best_themes)
+    news_section = _news_markdown(news_digest)
+    calendar_section = _calendar_markdown(event_calendar)
 
     weakest_lines = [
         f"- **{item.name}（{item.symbol}）**：日涨跌 {item.daily_return:+.2f}%。逻辑：{_weak_reason(item, analysis.macro_flags)}"
@@ -186,6 +236,10 @@ def build_report(
         "## 今日一句话",
         summary,
         "",
+        *news_section,
+        *([""] if news_section else []),
+        *calendar_section,
+        *([""] if calendar_section else []),
         "## 第1层：日频免费主报告",
         "",
         "### 四分法结论",
@@ -233,6 +287,8 @@ def build_report(
     ]
     if weekly_summary:
         short_text_lines.append(f"周频验证：{weekly_summary}")
+    if news_digest and news_digest.highlights:
+        short_text_lines.append(f"主线跟踪：{'；'.join(news_digest.highlights[:2])}")
     short_text = "\n".join(short_text_lines)
 
     payload = {
@@ -242,6 +298,8 @@ def build_report(
         "report_brand": effective_brand,
         "summary": summary,
         "analysis": asdict(analysis),
+        "news_digest": news_digest.to_payload() if news_digest else None,
+        "event_calendar": event_calendar.to_payload() if event_calendar else None,
         "weekly_validation": weekly_validation.to_payload()
         if weekly_validation
         else None,

@@ -28,6 +28,8 @@ class RuntimeConfig:
     feishu_chat_id: str | None
     feishu_report_folder: str | None
     report_brand: str
+    news_sources: dict[str, Any]
+    event_calendar: dict[str, Any]
 
 
 def _clean_env(name: str) -> str | None:
@@ -38,13 +40,25 @@ def _clean_env(name: str) -> str | None:
     return value or None
 
 
+def _load_yaml_file(path: Path) -> dict[str, Any]:
+    with path.open("r", encoding="utf-8") as file:
+        return yaml.safe_load(file) or {}
+
+
+def _load_optional_yaml(path: Path) -> dict[str, Any]:
+    if not path.exists():
+        return {}
+    return _load_yaml_file(path)
+
+
 def load_runtime_config(workspace: Path | None = None) -> RuntimeConfig:
     workspace = workspace or Path.cwd()
     load_dotenv(workspace / ".env")
 
     config_path = workspace / "config" / "markets.yaml"
-    with config_path.open("r", encoding="utf-8") as file:
-        config_data = yaml.safe_load(file)
+    config_data = _load_yaml_file(config_path)
+    news_sources = _load_optional_yaml(workspace / "config" / "news_sources.yaml")
+    event_calendar = _load_optional_yaml(workspace / "config" / "event_calendar.yaml")
 
     return RuntimeConfig(
         workspace=workspace,
@@ -61,4 +75,6 @@ def load_runtime_config(workspace: Path | None = None) -> RuntimeConfig:
         feishu_chat_id=_clean_env("FEISHU_CHAT_ID"),
         feishu_report_folder=_clean_env("FEISHU_REPORT_FOLDER"),
         report_brand=_clean_env("REPORT_BRAND") or DEFAULT_REPORT_BRAND,
+        news_sources=news_sources,
+        event_calendar=event_calendar,
     )

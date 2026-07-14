@@ -1,0 +1,31 @@
+sections:
+  - key: geopolitics
+    title: 地缘政治与能源
+    max_items: 2
+    feeds:
+      - name: 中东与原油
+        url: https://news.google.com/rss/search?q=Iran%20OR%20Hormuz%20OR%20Middle%20East%20oil%20OR%20OPEC&hl=en-US&gl=US&ceid=US:en
+  - key: us_markets
+    title: 美股与科技主线
+    max_items: 2
+    feeds:
+      - name: 美股科技
+        url: https://news.google.com/rss/search?q=Nasdaq%20OR%20Nvidia%20OR%20AI%20stocks%20OR%20S%26P%20500&hl=en-US&gl=US&ceid=US:en
+  - key: asia_markets
+    title: 亚太市场
+    max_items: 2
+    feeds:
+      - name: 亚洲股市
+        url: https://news.google.com/rss/search?q=China%20stocks%20OR%20Japan%20stocks%20OR%20Korea%20stocks%20OR%20Taiwan%20stocks&hl=en-US&gl=US&ceid=US:en
+  - key: fx_rates
+    title: 外汇与债市
+    max_items: 2
+    feeds:
+      - name: 美元与美债
+        url: https://news.google.com/rss/search?q=US%20dollar%20OR%20Treasury%20yields%20OR%20Federal%20Reserve&hl=en-US&gl=US&ceid=US:en
+  - key: crypto
+    title: 加密货币
+    max_items: 2
+    feeds:
+      - name: BTC与ETF
+        url: https://news.google.com/rss/search?q=Bitcoin%20ETF%20OR%20crypto%20market&hl=en-US&gl=US&ceid=US:en

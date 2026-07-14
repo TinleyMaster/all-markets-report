@@ -6,9 +6,11 @@ from pathlib import Path
 
 from .analyzer import analyze_market_data
 from .config import load_runtime_config
+from .event_calendar import build_event_calendar
 from .feishu import FeishuCredentials, create_dated_report_document, send_group_message
 from .fetcher import fetch_snapshots
 from .llm_writer import polish_report_with_deepseek
+from .news_digest import fetch_news_digest
 from .report import build_report
 from .weekly_signals import build_weekly_validation
 
@@ -20,7 +22,9 @@ def _save_artifacts(
     output_dir.mkdir(parents=True, exist_ok=True)
     json_path = output_dir / "report.json"
     md_path = output_dir / "report.md"
-    json_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    json_path.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
     md_path.write_text(markdown, encoding="utf-8")
     return json_path, md_path
 
@@ -29,10 +33,14 @@ def main() -> None:
     runtime = load_runtime_config()
     config_data = runtime.config_data
 
-    benchmark_snapshots = fetch_snapshots(config_data["benchmarks"], runtime.lookback_days)
+    benchmark_snapshots = fetch_snapshots(
+        config_data["benchmarks"], runtime.lookback_days
+    )
     theme_snapshots = fetch_snapshots(config_data["themes"], runtime.lookback_days)
     macro_snapshots = fetch_snapshots(config_data["macro"], runtime.lookback_days)
-    cross_asset_snapshots = fetch_snapshots(config_data.get("cross_assets", []), runtime.lookback_days)
+    cross_asset_snapshots = fetch_snapshots(
+        config_data.get("cross_assets", []), runtime.lookback_days
+    )
 
     analysis = analyze_market_data(
         benchmark_snapshots=benchmark_snapshots,
@@ -44,20 +52,39 @@ def main() -> None:
         top_losers=runtime.top_losers,
     )
     weekly_validation = build_weekly_validation(cross_asset_snapshots)
+    news_digest = None
+    event_calendar = None
+    runtime_notes: list[str] = []
+    try:
+        news_digest = fetch_news_digest(runtime.news_sources)
+    except Exception as error:  # pragma: no cover - network path
+        runtime_notes.append(f"新闻层抓取失败：{error}")
+    try:
+        event_calendar = build_event_calendar(runtime.event_calendar)
+    except Exception as error:  # pragma: no cover - config path
+        runtime_notes.append(f"事件日历加载失败：{error}")
     bundle = build_report(
         runtime.report_brand,
         runtime.timezone,
         analysis,
         weekly_validation=weekly_validation,
+        news_digest=news_digest,
+        event_calendar=event_calendar,
     )
+    if runtime_notes:
+        bundle.payload["runtime_notes"] = runtime_notes
 
     if runtime.deepseek_api_key:
         try:
-            bundle = polish_report_with_deepseek(bundle, runtime.deepseek_api_key, runtime.deepseek_model)
+            bundle = polish_report_with_deepseek(
+                bundle, runtime.deepseek_api_key, runtime.deepseek_model
+            )
         except Exception as error:  # pragma: no cover - network path
             bundle.payload["llm_error"] = str(error)
 
-    json_path, md_path = _save_artifacts(runtime.workspace, bundle.date_label, bundle.payload, bundle.markdown)
+    json_path, md_path = _save_artifacts(
+        runtime.workspace, bundle.date_label, bundle.payload, bundle.markdown
+    )
 
     document = None
     if runtime.feishu_app_id and runtime.feishu_app_secret:

@@ -1,0 +1,26 @@
+lookahead_days: 7
+events:
+  - date: 2026-07-15
+    label: 中国二季度 GDP 与工业、消费、投资数据
+    impact: 关系到 A 股、港股和人民币资产的风险偏好定价。
+    source: 维护型关注清单
+  - date: 2026-07-15
+    label: 美国 6 月 CPI
+    impact: 关系到美元、美债和美联储路径预期。
+    source: 维护型关注清单
+  - date: 2026-07-16
+    label: 美国 6 月 PPI
+    impact: 用于验证通胀传导是否继续抬升。
+    source: 维护型关注清单
+  - date: 2026-07-16
+    label: 台积电二季报
+    impact: 影响全球 AI 半导体链估值与景气判断。
+    source: 维护型关注清单
+  - date: 2026-07-17
+    label: 美国 6 月零售销售
+    impact: 影响美国需求韧性与软着陆交易。
+    source: 维护型关注清单
+  - date: 2026-07-18
+    label: 世界人工智能大会（WAIC）
+    impact: 用于跟踪中国 AI 产业链与政策预期变化。
+    source: 维护型关注清单
